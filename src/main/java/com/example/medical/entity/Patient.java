@@ -1,12 +1,12 @@
 package com.example.medical.entity;
 
 import com.example.medical.entity.enu.Gender;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -21,12 +21,12 @@ public class Patient {
 
     @NotBlank
     @Column(unique = true, nullable = false)
-    private String patientCode; // Mã bệnh nhân do bệnh viện cấp
+    private String patientCode;
 
     @NotBlank
     private String fullName;
 
-    private Integer birthYear; // Thay đổi từ LocalDate sang Integer để đơn giản
+    private Integer birthYear;
 
     @Enumerated(EnumType.STRING)
     private Gender gender;
@@ -42,9 +42,10 @@ public class Patient {
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     @Column(name = "is_active")
-    private Boolean isActive = true; // Để quản lý trạng thái bệnh nhân
+    private Boolean isActive = true;
 
     @OneToMany(mappedBy = "patient", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore // Thêm annotation này để tránh circular reference
     private List<SurveyResponse> surveyResponses;
 
     public Patient() {}
@@ -61,5 +62,11 @@ public class Patient {
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    // Thêm method để lấy số lượng surveys thay vì toàn bộ list
+    @JsonIgnore
+    public int getSurveyCount() {
+        return surveyResponses != null ? surveyResponses.size() : 0;
     }
 }
