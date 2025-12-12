@@ -54,8 +54,15 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Chỉ cho phép domain cụ thể
-        configuration.setAllowedOriginPatterns(List.of("https://medical-beta-bice.vercel.app"));
+        // 🔧 SỬA LỖI: Cho phép cả localhost và production
+        configuration.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",           // Cho phép mọi port localhost
+                "http://127.0.0.1:*",          // Cho phép 127.0.0.1
+                "https://medical-beta-bice.vercel.app"  // Production domain
+        ));
+
+        // Hoặc cho phép tất cả origins trong development
+        // configuration.addAllowedOriginPattern("*");
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         configuration.setAllowedHeaders(List.of("*"));

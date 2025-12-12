@@ -1,7 +1,9 @@
 package com.example.medical.service.impl;
 
 import com.example.medical.dto.response.AuthResponse;
+import com.example.medical.dto.response.UserInfoDTO;
 import com.example.medical.entity.User;
+import com.example.medical.mapper.UserMapper;
 import com.example.medical.repository.UserRepository;
 import com.example.medical.service.AuthService;
 import com.example.medical.util.JwtUtil;
@@ -21,6 +23,9 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private UserMapper userMapper;
+
     @Override
     public AuthResponse authenticate(String username, String password) {
         User user = userRepository.findByUsername(username)
@@ -31,14 +36,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String token = jwtUtil.generateToken(user.getUsername());
-
-        AuthResponse.UserInfo userInfo = new AuthResponse.UserInfo(
-                user.getId(),
-                user.getUsername(),
-                user.getFullName(),
-                user.getEmail(),
-                user.getRole().toString()
-        );
+        UserInfoDTO userInfo = userMapper.toUserInfoDTO(user);
 
         return new AuthResponse(true, token, "Authentication successful", userInfo);
     }

@@ -18,5 +18,5 @@ public class MedicalApplication {
 		ObjectMapper mapper = new ObjectMapper();
 		mapper.registerModule(new JavaTimeModule());
 		return mapper;
-	}
+	}		
 }

@@ -15,6 +15,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
+
 
 @Service
 @Transactional
@@ -67,24 +71,63 @@ public class SurveyServiceImpl implements SurveyService {
     }
 
     @Override
-    public List<SurveyResponse> getRecentSurveys(int hours) {
-        LocalDateTime sinceTime = LocalDateTime.now().minusHours(hours);
-        return surveyResponseRepository.findRecentResponses(sinceTime);
-    }
-
-    @Override
     public List<SurveyResponse> getAllSurveyResponses() {
         return surveyResponseRepository.findAll();
     }
 
     @Override
-    public List<SurveyResponse> getSurveyResponsesByPatient(Long patientId) {
-        return surveyResponseRepository.findByPatientId(patientId);
+    public Page<SurveyResponse> getRecentSurveys(int hours, Pageable pageable) {
+        try {
+            LocalDateTime sinceTime = LocalDateTime.now().minusHours(hours);
+            System.out.println("DEBUG: Looking for surveys since: " + sinceTime); // Debug log
+
+            Page<SurveyResponse> result = surveyResponseRepository.findRecentResponses(sinceTime, pageable);
+            System.out.println("DEBUG: Found " + result.getTotalElements() + " surveys"); // Debug log
+
+            return result;
+        } catch (Exception e) {
+            System.err.println("ERROR in getRecentSurveys: " + e.getMessage());
+            throw new RuntimeException("Error getting recent surveys: " + e.getMessage(), e);
+        }
     }
 
     @Override
+    public Page<SurveyResponse> getAllSurveyResponses(Pageable pageable) {
+        return surveyResponseRepository.findAll(pageable);
+    }
+
+    public List<SurveyResponse> getSurveyResponsesByPatient(Long patientId) {
+        return surveyResponseRepository.findByPatientIdOrderByCreatedAtDesc(patientId);
+    }
+
+    @Override
+    public Page<SurveyResponse> getSurveyResponsesByPatient(Long patientId, Pageable pageable) {
+        return surveyResponseRepository.findByPatientIdOrderByCreatedAtDesc(patientId, pageable);
+    }
+
     public List<SurveyResponse> getSurveyResponsesBySurveyType(SurveyType surveyType) {
         return surveyResponseRepository.findBySurveyType(surveyType);
+    }
+
+    @Override
+    public Page<SurveyResponse> getSurveyResponsesBySurveyType(SurveyType surveyType, Pageable pageable) {
+        return surveyResponseRepository.findBySurveyType(surveyType, pageable);
+    }
+
+    @Override
+    public List<SurveyResponse> getRecentSurveys(int hours) {
+        try {
+            LocalDateTime sinceTime = LocalDateTime.now().minusHours(hours);
+            System.out.println("DEBUG: Looking for surveys since: " + sinceTime); // Debug log
+
+            List<SurveyResponse> result = surveyResponseRepository.findRecentResponses(sinceTime);
+            System.out.println("DEBUG: Found " + result.size() + " surveys"); // Debug log
+
+            return result;
+        } catch (Exception e) {
+            System.err.println("ERROR in getRecentSurveys: " + e.getMessage());
+            throw new RuntimeException("Error getting recent surveys: " + e.getMessage(), e);
+        }
     }
 
     // Additional utility methods
@@ -139,6 +182,8 @@ public class SurveyServiceImpl implements SurveyService {
                 return calculateZungScore(responses);
             case DASS21:
                 return calculateDASS21Score(responses);
+            case MMSE:
+                return calculateMMSEScore(responses);
             default:
                 return 0;
         }
@@ -303,6 +348,35 @@ public class SurveyServiceImpl implements SurveyService {
         return 0;
     }
 
+    private int calculateMMSEScore(Map<String, Object> responses) {
+        int totalScore = 0;
+        try {
+            // MMSE has 30 points total, questions vary in scoring
+            for (int i = 1; i <= 30; i++) {
+                Integer score = parseIntegerFromResponse(responses.get("q" + i));
+                if (score != null && score >= 0 && score <= 1) {
+                    totalScore += score;
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error calculating MMSE score: " + e.getMessage());
+        }
+        return Math.min(totalScore, 30); // MMSE max score is 30
+    }
+
+    private String interpretMMSE(int score) {
+        String interpretation = "Điểm MMSE: " + score + "/30. ";
+        if (score >= 24) {
+            return interpretation + "Nhận thức bình thường. Không có dấu hiệu suy giảm nhận thức.";
+        } else if (score >= 18) {
+            return interpretation + "Suy giảm nhận thức nhẹ. Nên theo dõi và đánh giá thêm.";
+        } else if (score >= 10) {
+            return interpretation + "Suy giảm nhận thức vừa. Cần can thiệp và hỗ trợ.";
+        } else {
+            return interpretation + "Suy giảm nhận thức nặng. Cần chăm sóc đặc biệt và điều trị tích cực.";
+        }
+    }
+
     // Interpretation methods
     private String generateInterpretation(SurveyType surveyType, int totalScore) {
         switch (surveyType) {
@@ -314,6 +388,8 @@ public class SurveyServiceImpl implements SurveyService {
                 return interpretZung(totalScore);
             case DASS21:
                 return interpretDASS21(totalScore);
+            case MMSE:
+                return interpretMMSE(totalScore);
             default:
                 return "Không có diễn giải cho loại khảo sát này";
         }
@@ -369,4 +445,7 @@ public class SurveyServiceImpl implements SurveyService {
             return interpretation + "Mức độ rất nặng. Cần được can thiệp điều trị ngay lập tức.";
         }
     }
+
+
+
 }

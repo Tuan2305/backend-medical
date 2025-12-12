@@ -6,8 +6,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Max;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import java.util.Map;
 
+@Getter
+@Setter
+@NoArgsConstructor
 public class SurveySubmissionRequest {
     // Patient identification
     @NotBlank(message = "Mã bệnh nhân là bắt buộc")
@@ -33,31 +39,4 @@ public class SurveySubmissionRequest {
 
     @NotNull(message = "Câu trả lời khảo sát là bắt buộc")
     private Map<String, Object> responses;
-
-    public SurveySubmissionRequest() {}
-
-    // Getters and Setters
-    public String getPatientCode() { return patientCode; }
-    public void setPatientCode(String patientCode) { this.patientCode = patientCode; }
-
-    public String getFullName() { return fullName; }
-    public void setFullName(String fullName) { this.fullName = fullName; }
-
-    public Integer getBirthYear() { return birthYear; }
-    public void setBirthYear(Integer birthYear) { this.birthYear = birthYear; }
-
-    public Gender getGender() { return gender; }
-    public void setGender(Gender gender) { this.gender = gender; }
-
-    public String getAddress() { return address; }
-    public void setAddress(String address) { this.address = address; }
-
-    public String getOccupation() { return occupation; }
-    public void setOccupation(String occupation) { this.occupation = occupation; }
-
-    public SurveyType getSurveyType() { return surveyType; }
-    public void setSurveyType(SurveyType surveyType) { this.surveyType = surveyType; }
-
-    public Map<String, Object> getResponses() { return responses; }
-    public void setResponses(Map<String, Object> responses) { this.responses = responses; }
 }

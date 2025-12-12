@@ -1,20 +1,23 @@
-// filepath: c:\TUAN\code\Docker\medical fullstack\medical-backend\src\main\java\com\example\medical\controller\DoctorController.java
 package com.example.medical.controller;
 
-import com.example.medical.dto.response.ApiResponse;
-import com.example.medical.dto.response.PatientDTO;
+import com.example.medical.dto.response.*;
 import com.example.medical.entity.Patient;
 import com.example.medical.entity.SurveyResponse;
 import com.example.medical.entity.enu.SurveyType;
+import com.example.medical.mapper.PatientMapper;
+import com.example.medical.mapper.SurveyResponseMapper;
+import com.example.medical.service.DashboardService;
 import com.example.medical.service.PatientService;
 import com.example.medical.service.SurveyService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/doctor")
@@ -28,15 +31,35 @@ public class DoctorController {
     @Autowired
     private SurveyService surveyService;
 
+    @Autowired
+    private DashboardService dashboardService;
+
+    @Autowired
+    private PatientMapper patientMapper;
+
+    @Autowired
+    private SurveyResponseMapper surveyResponseMapper;
+
     @GetMapping("/patients/recent")
-    public ResponseEntity<ApiResponse<List<PatientDTO>>> getRecentPatients(
-            @RequestParam(defaultValue = "24") int hours) {
+    public ResponseEntity<ApiResponse<PagedResponse<PatientDTO>>> getRecentPatients(
+            @RequestParam(defaultValue = "24") int hours,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "updatedAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
-            List<Patient> patients = patientService.getRecentPatients(hours);
-            List<PatientDTO> patientDTOs = convertToDTOList(patients);
+            Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
+                    Sort.Direction.DESC : Sort.Direction.ASC;
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+            Page<Patient> patientsPage = patientService.getRecentPatients(hours, pageable);
+            List<PatientDTO> patientDTOs = patientMapper.toDTOList(patientsPage.getContent());
+
+            PagedResponse<PatientDTO> pagedResponse = PagedResponse.of(
+                    patientDTOs, page, size, patientsPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
-                    "Lấy danh sách bệnh nhân gần đây thành công", patientDTOs));
+                    "Lấy danh sách bệnh nhân gần đây thành công", pagedResponse));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
                     ApiResponse.error("Lỗi khi lấy danh sách bệnh nhân: " + e.getMessage()));
@@ -44,13 +67,24 @@ public class DoctorController {
     }
 
     @GetMapping("/patients/all")
-    public ResponseEntity<ApiResponse<List<PatientDTO>>> getAllActivePatients() {
+    public ResponseEntity<ApiResponse<PagedResponse<PatientDTO>>> getAllActivePatients(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "updatedAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
-            List<Patient> patients = patientService.getAllActivePatients();
-            List<PatientDTO> patientDTOs = convertToDTOList(patients);
+            Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
+                    Sort.Direction.DESC : Sort.Direction.ASC;
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+            Page<Patient> patientsPage = patientService.getAllActivePatients(pageable);
+            List<PatientDTO> patientDTOs = patientMapper.toDTOList(patientsPage.getContent());
+
+            PagedResponse<PatientDTO> pagedResponse = PagedResponse.of(
+                    patientDTOs, page, size, patientsPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
-                    "Lấy danh sách tất cả bệnh nhân thành công", patientDTOs));
+                    "Lấy danh sách tất cả bệnh nhân thành công", pagedResponse));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
                     ApiResponse.error("Lỗi khi lấy danh sách bệnh nhân: " + e.getMessage()));
@@ -61,7 +95,7 @@ public class DoctorController {
     public ResponseEntity<ApiResponse<PatientDTO>> getPatientByCode(@PathVariable String patientCode) {
         try {
             Patient patient = patientService.getPatientByCode(patientCode);
-            PatientDTO patientDTO = convertToDTO(patient);
+            PatientDTO patientDTO = patientMapper.toDTO(patient);
 
             return ResponseEntity.ok(ApiResponse.success(
                     "Lấy thông tin bệnh nhân thành công", patientDTO));
@@ -72,16 +106,25 @@ public class DoctorController {
     }
 
     @GetMapping("/patients/{patientCode}/surveys")
-    public ResponseEntity<ApiResponse<List<SurveyResponse>>> getPatientSurveyHistory(
-            @PathVariable String patientCode) {
+    public ResponseEntity<ApiResponse<PagedResponse<SurveyResponseDTO>>> getPatientSurveyHistory(
+            @PathVariable String patientCode,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
-            List<SurveyResponse> surveys = patientService.getPatientSurveyHistory(patientCode);
+            Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
+                    Sort.Direction.DESC : Sort.Direction.ASC;
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
 
-            // Remove patient object from each survey to avoid circular reference
-            surveys.forEach(survey -> survey.setPatient(null));
+            Page<SurveyResponse> surveysPage = patientService.getPatientSurveyHistory(patientCode, pageable);
+            List<SurveyResponseDTO> surveyDTOs = surveyResponseMapper.toDTOList(surveysPage.getContent());
+
+            PagedResponse<SurveyResponseDTO> pagedResponse = PagedResponse.of(
+                    surveyDTOs, page, size, surveysPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
-                    "Lấy lịch sử khảo sát của bệnh nhân thành công", surveys));
+                    "Lấy lịch sử khảo sát của bệnh nhân thành công", pagedResponse));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
                     ApiResponse.error("Lỗi khi lấy lịch sử khảo sát: " + e.getMessage()));
@@ -89,16 +132,50 @@ public class DoctorController {
     }
 
     @GetMapping("/surveys/recent")
-    public ResponseEntity<ApiResponse<List<SurveyResponseDTO>>> getRecentSurveys(
-            @RequestParam(defaultValue = "24") int hours) {
+    public ResponseEntity<ApiResponse<PagedResponse<SurveyResponseDTO>>> getRecentSurveys(
+            @RequestParam(defaultValue = "24") int hours,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
-            List<SurveyResponse> surveys = surveyService.getRecentSurveys(hours);
-            List<SurveyResponseDTO> surveyDTOs = surveys.stream()
-                    .map(this::convertSurveyToDTO)
-                    .collect(Collectors.toList());
+            Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
+                    Sort.Direction.DESC : Sort.Direction.ASC;
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+            Page<SurveyResponse> surveysPage = surveyService.getRecentSurveys(hours, pageable);
+            List<SurveyResponseDTO> surveyDTOs = surveyResponseMapper.toDTOList(surveysPage.getContent());
+
+            PagedResponse<SurveyResponseDTO> pagedResponse = PagedResponse.of(
+                    surveyDTOs, page, size, surveysPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
-                    "Lấy danh sách khảo sát gần đây thành công", surveyDTOs));
+                    "Lấy danh sách khảo sát gần đây thành công", pagedResponse));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("Lỗi khi lấy danh sách khảo sát: " + e.getMessage()));
+        }
+    }
+
+    @GetMapping("/surveys/all")
+    public ResponseEntity<ApiResponse<PagedResponse<SurveyResponseDTO>>> getAllSurveys(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
+        try {
+            Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
+                    Sort.Direction.DESC : Sort.Direction.ASC;
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+            Page<SurveyResponse> surveysPage = surveyService.getAllSurveyResponses(pageable);
+            List<SurveyResponseDTO> surveyDTOs = surveyResponseMapper.toDTOList(surveysPage.getContent());
+
+            PagedResponse<SurveyResponseDTO> pagedResponse = PagedResponse.of(
+                    surveyDTOs, page, size, surveysPage.getTotalElements());
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    "Lấy danh sách tất cả khảo sát thành công", pagedResponse));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
                     ApiResponse.error("Lỗi khi lấy danh sách khảo sát: " + e.getMessage()));
@@ -106,16 +183,25 @@ public class DoctorController {
     }
 
     @GetMapping("/surveys/type/{surveyType}")
-    public ResponseEntity<ApiResponse<List<SurveyResponseDTO>>> getSurveysByType(
-            @PathVariable SurveyType surveyType) {
+    public ResponseEntity<ApiResponse<PagedResponse<SurveyResponseDTO>>> getSurveysByType(
+            @PathVariable SurveyType surveyType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
-            List<SurveyResponse> surveys = surveyService.getSurveyResponsesBySurveyType(surveyType);
-            List<SurveyResponseDTO> surveyDTOs = surveys.stream()
-                    .map(this::convertSurveyToDTO)
-                    .collect(Collectors.toList());
+            Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
+                    Sort.Direction.DESC : Sort.Direction.ASC;
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+            Page<SurveyResponse> surveysPage = surveyService.getSurveyResponsesBySurveyType(surveyType, pageable);
+            List<SurveyResponseDTO> surveyDTOs = surveyResponseMapper.toDTOList(surveysPage.getContent());
+
+            PagedResponse<SurveyResponseDTO> pagedResponse = PagedResponse.of(
+                    surveyDTOs, page, size, surveysPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
-                    "Lấy danh sách khảo sát theo loại thành công", surveyDTOs));
+                    "Lấy danh sách khảo sát theo loại thành công", pagedResponse));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
                     ApiResponse.error("Lỗi khi lấy danh sách khảo sát: " + e.getMessage()));
@@ -123,20 +209,32 @@ public class DoctorController {
     }
 
     @GetMapping("/patients/search")
-    public ResponseEntity<ApiResponse<List<PatientDTO>>> searchPatients(
-            @RequestParam String name) {
+    public ResponseEntity<ApiResponse<PagedResponse<PatientDTO>>> searchPatients(
+            @RequestParam String name,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "fullName") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDirection) {
         try {
-            List<Patient> patients = patientService.searchPatientsByName(name);
-            List<PatientDTO> patientDTOs = convertToDTOList(patients);
+            Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
+                    Sort.Direction.DESC : Sort.Direction.ASC;
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+
+            Page<Patient> patientsPage = patientService.searchPatientsByName(name, pageable);
+            List<PatientDTO> patientDTOs = patientMapper.toDTOList(patientsPage.getContent());
+
+            PagedResponse<PatientDTO> pagedResponse = PagedResponse.of(
+                    patientDTOs, page, size, patientsPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
-                    "Tìm kiếm bệnh nhân thành công", patientDTOs));
+                    "Tìm kiếm bệnh nhân thành công", pagedResponse));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(
                     ApiResponse.error("Lỗi khi tìm kiếm bệnh nhân: " + e.getMessage()));
         }
     }
 
+    // Giữ lại API không phân trang cho dashboard/stats
     @PostMapping("/patients/{patientCode}/validate")
     public ResponseEntity<ApiResponse<Boolean>> validatePatientCode(@PathVariable String patientCode) {
         try {
@@ -174,14 +272,9 @@ public class DoctorController {
     }
 
     @GetMapping("/dashboard/stats")
-    public ResponseEntity<ApiResponse<DashboardStats>> getDashboardStats() {
+    public ResponseEntity<ApiResponse<DashboardStatsDTO>> getDashboardStats() {
         try {
-            DashboardStats stats = new DashboardStats();
-            stats.setTotalPatients(patientService.getAllActivePatients().size());
-            stats.setRecentSurveys24h(surveyService.getRecentSurveys(24).size());
-            stats.setRecentSurveys7d(surveyService.getRecentSurveys(24 * 7).size());
-            stats.setRecentPatients24h(patientService.getRecentPatients(24).size());
-
+            DashboardStatsDTO stats = dashboardService.getDashboardStats();
             return ResponseEntity.ok(ApiResponse.success(
                     "Lấy thống kê dashboard thành công", stats));
         } catch (Exception e) {
@@ -190,121 +283,42 @@ public class DoctorController {
         }
     }
 
-    // Helper methods
-    private List<PatientDTO> convertToDTOList(List<Patient> patients) {
-        return patients.stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
+    @GetMapping("/patients/summary")
+    public ResponseEntity<ApiResponse<PagedResponse<PatientSurveySummaryDTO>>> getPatientSurveySummaries(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "lastSurveyDate") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
+        try {
+            Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
+                    Sort.Direction.DESC : Sort.Direction.ASC;
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
 
-    private PatientDTO convertToDTO(Patient patient) {
-        LocalDateTime lastSurveyDate = null;
-        int surveyCount = 0;
+            Page<PatientSurveySummaryDTO> summariesPage = patientService.getPatientSurveySummaries(pageable);
 
-        if (patient.getSurveyResponses() != null && !patient.getSurveyResponses().isEmpty()) {
-            surveyCount = patient.getSurveyResponses().size();
-            lastSurveyDate = patient.getSurveyResponses().stream()
-                    .map(SurveyResponse::getCreatedAt)
-                    .max(LocalDateTime::compareTo)
-                    .orElse(null);
+            PagedResponse<PatientSurveySummaryDTO> pagedResponse = PagedResponse.of(
+                    summariesPage.getContent(), page, size, summariesPage.getTotalElements());
+
+            return ResponseEntity.ok(ApiResponse.success(
+                    "Lấy tổng quan bệnh nhân thành công", pagedResponse));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("Lỗi khi lấy tổng quan bệnh nhân: " + e.getMessage()));
         }
-
-        return new PatientDTO(
-                patient.getId(),
-                patient.getPatientCode(),
-                patient.getFullName(),
-                patient.getBirthYear(),
-                patient.getGender(),
-                patient.getAddress(),
-                patient.getOccupation(),
-                patient.getCreatedAt(),
-                patient.getUpdatedAt(),
-                patient.getIsActive(),
-                surveyCount,
-                lastSurveyDate
-        );
     }
 
-    private SurveyResponseDTO convertSurveyToDTO(SurveyResponse survey) {
-        return new SurveyResponseDTO(
-                survey.getId(),
-                survey.getPatient() != null ? survey.getPatient().getPatientCode() : null,
-                survey.getPatient() != null ? survey.getPatient().getFullName() : null,
-                survey.getSurveyType(),
-                survey.getTotalScore(),
-                survey.getInterpretation(),
-                survey.getCreatedAt(),
-                survey.getResponses()
-        );
-    }
+    // Export all summaries (for Excel/CSV export)
+    @GetMapping("/patients/summary/export")
+    public ResponseEntity<ApiResponse<List<PatientSurveySummaryDTO>>> exportPatientSurveySummaries() {
+        try {
+            List<PatientSurveySummaryDTO> summaries = patientService.getAllPatientSurveySummaries();
 
-    // DTOs as inner classes
-    public static class DashboardStats {
-        private int totalPatients;
-        private int recentSurveys24h;
-        private int recentSurveys7d;
-        private int recentPatients24h;
-
-        // Getters and Setters
-        public int getTotalPatients() { return totalPatients; }
-        public void setTotalPatients(int totalPatients) { this.totalPatients = totalPatients; }
-
-        public int getRecentSurveys24h() { return recentSurveys24h; }
-        public void setRecentSurveys24h(int recentSurveys24h) { this.recentSurveys24h = recentSurveys24h; }
-
-        public int getRecentSurveys7d() { return recentSurveys7d; }
-        public void setRecentSurveys7d(int recentSurveys7d) { this.recentSurveys7d = recentSurveys7d; }
-
-        public int getRecentPatients24h() { return recentPatients24h; }
-        public void setRecentPatients24h(int recentPatients24h) { this.recentPatients24h = recentPatients24h; }
-    }
-
-    public static class SurveyResponseDTO {
-        private Long id;
-        private String patientCode;
-        private String patientName;
-        private SurveyType surveyType;
-        private Integer totalScore;
-        private String interpretation;
-        private LocalDateTime createdAt;
-        private String responses;
-
-        public SurveyResponseDTO(Long id, String patientCode, String patientName,
-                                 SurveyType surveyType, Integer totalScore, String interpretation,
-                                 LocalDateTime createdAt, String responses) {
-            this.id = id;
-            this.patientCode = patientCode;
-            this.patientName = patientName;
-            this.surveyType = surveyType;
-            this.totalScore = totalScore;
-            this.interpretation = interpretation;
-            this.createdAt = createdAt;
-            this.responses = responses;
+            return ResponseEntity.ok(ApiResponse.success(
+                    "Xuất dữ liệu tổng quan bệnh nhân thành công", summaries));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(
+                    ApiResponse.error("Lỗi khi xuất dữ liệu: " + e.getMessage()));
         }
-
-        // Getters and Setters
-        public Long getId() { return id; }
-        public void setId(Long id) { this.id = id; }
-
-        public String getPatientCode() { return patientCode; }
-        public void setPatientCode(String patientCode) { this.patientCode = patientCode; }
-
-        public String getPatientName() { return patientName; }
-        public void setPatientName(String patientName) { this.patientName = patientName; }
-
-        public SurveyType getSurveyType() { return surveyType; }
-        public void setSurveyType(SurveyType surveyType) { this.surveyType = surveyType; }
-
-        public Integer getTotalScore() { return totalScore; }
-        public void setTotalScore(Integer totalScore) { this.totalScore = totalScore; }
-
-        public String getInterpretation() { return interpretation; }
-        public void setInterpretation(String interpretation) { this.interpretation = interpretation; }
-
-        public LocalDateTime getCreatedAt() { return createdAt; }
-        public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-
-        public String getResponses() { return responses; }
-        public void setResponses(String responses) { this.responses = responses; }
     }
+
 }
