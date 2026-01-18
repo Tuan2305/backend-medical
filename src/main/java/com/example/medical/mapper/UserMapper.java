@@ -15,7 +15,7 @@ public class UserMapper {
         return new UserInfoDTO(
                 user.getId(),
                 user.getUsername(),
-                user.getFullName(),
+                user.getHoTen(),
                 user.getEmail(),
                 user.getRole().toString()
         );

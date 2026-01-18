@@ -9,10 +9,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserInfoDTO {
-    private Long id;
-    private String username;
-    private String hoTen;
-    private String email;
-    private String role;
+public class ThongKeDashboardDTO {
+    private int tongBenhNhan;
+    private int recentKhaosat24h;
+    private int recentKhaosat7d;
+    private int recentBenhNhan24h;
 }

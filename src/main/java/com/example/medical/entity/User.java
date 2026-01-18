@@ -1,6 +1,6 @@
 package com.example.medical.entity;
 
-import com.example.medical.entity.enu.Role;
+import com.example.medical.entity.enu.VaiTro;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -30,24 +30,25 @@ public class User {
     private String email;
 
     @NotBlank
-    private String fullName;
+    @Column(name = "full_name")
+    private String hoTen;
 
     @Enumerated(EnumType.STRING)
-    private Role role = Role.DOCTOR;
+    private VaiTro role = VaiTro.DOCTOR;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    @OneToMany(mappedBy = "doctor", cascade = CascadeType.ALL)
-    private List<SurveyResponse> surveyResponses;
+    @OneToMany(mappedBy = "bacSi", cascade = CascadeType.ALL)
+    private List<PhanHoiKhaoSat> surveyResponses;
 
     // Constructors, getters, setters
     public User() {}
 
-    public User(String username, String password, String email, String fullName) {
+    public User(String username, String password, String email, String hoTen) {
         this.username = username;
         this.password = password;
         this.email = email;
-        this.fullName = fullName;
+        this.hoTen = hoTen;
     }
 }

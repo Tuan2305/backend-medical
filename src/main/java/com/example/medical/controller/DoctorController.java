@@ -1,14 +1,14 @@
 package com.example.medical.controller;
 
 import com.example.medical.dto.response.*;
-import com.example.medical.entity.Patient;
-import com.example.medical.entity.SurveyResponse;
-import com.example.medical.entity.enu.SurveyType;
-import com.example.medical.mapper.PatientMapper;
-import com.example.medical.mapper.SurveyResponseMapper;
-import com.example.medical.service.DashboardService;
-import com.example.medical.service.PatientService;
-import com.example.medical.service.SurveyService;
+import com.example.medical.entity.BenhNhan;
+import com.example.medical.entity.PhanHoiKhaoSat;
+import com.example.medical.entity.enu.LoaiKhaoSat;
+import com.example.medical.mapper.BenhNhanMapper;
+import com.example.medical.mapper.PhanHoiKhaoSatMapper;
+import com.example.medical.service.BangDieuKhienService;
+import com.example.medical.service.BenhNhanService;
+import com.example.medical.service.KhaoSatService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -26,36 +26,45 @@ import java.util.List;
 public class DoctorController {
 
     @Autowired
-    private PatientService patientService;
+    private BenhNhanService benhNhanService;
 
     @Autowired
-    private SurveyService surveyService;
+    private KhaoSatService khaoSatService;
 
     @Autowired
-    private DashboardService dashboardService;
+    private BangDieuKhienService bangDieuKhienService;
 
     @Autowired
-    private PatientMapper patientMapper;
+    private BenhNhanMapper benhNhanMapper;
 
     @Autowired
-    private SurveyResponseMapper surveyResponseMapper;
+    private PhanHoiKhaoSatMapper phanHoiKhaoSatMapper;
 
     @GetMapping("/patients/recent")
-    public ResponseEntity<ApiResponse<PagedResponse<PatientDTO>>> getRecentPatients(
+    public ResponseEntity<ApiResponse<PagedResponse<benhNhanDTO>>> getRecentPatients(
             @RequestParam(defaultValue = "24") int hours,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "updatedAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
+            // Map English field names to Vietnamese entity attributes
+            String mappedSortBy = switch (sortBy) {
+                case "updatedAt" -> "ngayCapNhat";
+                case "createdAt" -> "ngayTao";
+                case "fullName" -> "hoTen";
+                case "patientCode" -> "maBenhNhan";
+                default -> sortBy;
+            };
+
             Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
                     Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, mappedSortBy));
 
-            Page<Patient> patientsPage = patientService.getRecentPatients(hours, pageable);
-            List<PatientDTO> patientDTOs = patientMapper.toDTOList(patientsPage.getContent());
+            Page<BenhNhan> patientsPage = benhNhanService.layBenhNhanGanDay(hours, pageable);
+            List<benhNhanDTO> patientDTOs = benhNhanMapper.toDTOList(patientsPage.getContent());
 
-            PagedResponse<PatientDTO> pagedResponse = PagedResponse.of(
+            PagedResponse<benhNhanDTO> pagedResponse = PagedResponse.of(
                     patientDTOs, page, size, patientsPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
@@ -67,20 +76,29 @@ public class DoctorController {
     }
 
     @GetMapping("/patients/all")
-    public ResponseEntity<ApiResponse<PagedResponse<PatientDTO>>> getAllActivePatients(
+    public ResponseEntity<ApiResponse<PagedResponse<benhNhanDTO>>> getAllActivePatients(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "updatedAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
+            // Map English field names to Vietnamese entity attributes
+            String mappedSortBy = switch (sortBy) {
+                case "updatedAt" -> "ngayCapNhat";
+                case "createdAt" -> "ngayTao";
+                case "fullName" -> "hoTen";
+                case "patientCode" -> "maBenhNhan";
+                default -> sortBy;
+            };
+
             Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
                     Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, mappedSortBy));
 
-            Page<Patient> patientsPage = patientService.getAllActivePatients(pageable);
-            List<PatientDTO> patientDTOs = patientMapper.toDTOList(patientsPage.getContent());
+            Page<BenhNhan> patientsPage = benhNhanService.layTatCaBenhNhanDangHoatDong(pageable);
+            List<benhNhanDTO> patientDTOs = benhNhanMapper.toDTOList(patientsPage.getContent());
 
-            PagedResponse<PatientDTO> pagedResponse = PagedResponse.of(
+            PagedResponse<benhNhanDTO> pagedResponse = PagedResponse.of(
                     patientDTOs, page, size, patientsPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
@@ -92,10 +110,10 @@ public class DoctorController {
     }
 
     @GetMapping("/patients/{patientCode}")
-    public ResponseEntity<ApiResponse<PatientDTO>> getPatientByCode(@PathVariable String patientCode) {
+    public ResponseEntity<ApiResponse<benhNhanDTO>> getPatientByCode(@PathVariable String maBenhNhan) {
         try {
-            Patient patient = patientService.getPatientByCode(patientCode);
-            PatientDTO patientDTO = patientMapper.toDTO(patient);
+            BenhNhan patient = benhNhanService.layBenhNhanTheoMa(maBenhNhan);
+            benhNhanDTO patientDTO = benhNhanMapper.toDTO(patient);
 
             return ResponseEntity.ok(ApiResponse.success(
                     "Lấy thông tin bệnh nhân thành công", patientDTO));
@@ -106,21 +124,30 @@ public class DoctorController {
     }
 
     @GetMapping("/patients/{patientCode}/surveys")
-    public ResponseEntity<ApiResponse<PagedResponse<SurveyResponseDTO>>> getPatientSurveyHistory(
-            @PathVariable String patientCode,
+    public ResponseEntity<ApiResponse<PagedResponse<PhanHoiKhaoSatDTO>>> getPatientSurveyHistory(
+            @PathVariable String maBenhNhan,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
+            // Map English field names to Vietnamese entity attributes
+            String mappedSortBy = switch (sortBy) {
+                case "createdAt" -> "ngayTao";
+                case "updatedAt" -> "ngayCapNhat";
+                case "totalScore" -> "tongDiem";
+                case "surveyType" -> "loaiKhaoSat";
+                default -> sortBy;
+            };
+
             Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
                     Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, mappedSortBy));
 
-            Page<SurveyResponse> surveysPage = patientService.getPatientSurveyHistory(patientCode, pageable);
-            List<SurveyResponseDTO> surveyDTOs = surveyResponseMapper.toDTOList(surveysPage.getContent());
+            Page<PhanHoiKhaoSat> surveysPage = benhNhanService.layLichSuKhaoSatCuaBenhNhan(maBenhNhan, pageable);
+            List<PhanHoiKhaoSatDTO> surveyDTOs = phanHoiKhaoSatMapper.toDTOList(surveysPage.getContent());
 
-            PagedResponse<SurveyResponseDTO> pagedResponse = PagedResponse.of(
+            PagedResponse<PhanHoiKhaoSatDTO> pagedResponse = PagedResponse.of(
                     surveyDTOs, page, size, surveysPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
@@ -132,21 +159,30 @@ public class DoctorController {
     }
 
     @GetMapping("/surveys/recent")
-    public ResponseEntity<ApiResponse<PagedResponse<SurveyResponseDTO>>> getRecentSurveys(
+    public ResponseEntity<ApiResponse<PagedResponse<PhanHoiKhaoSatDTO>>> getRecentSurveys(
             @RequestParam(defaultValue = "24") int hours,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
+            // Map English field names to Vietnamese entity attributes
+            String mappedSortBy = switch (sortBy) {
+                case "createdAt" -> "ngayTao";
+                case "updatedAt" -> "ngayCapNhat";
+                case "totalScore" -> "tongDiem";
+                case "surveyType" -> "loaiKhaoSat";
+                default -> sortBy;
+            };
+
             Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
                     Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, mappedSortBy));
 
-            Page<SurveyResponse> surveysPage = surveyService.getRecentSurveys(hours, pageable);
-            List<SurveyResponseDTO> surveyDTOs = surveyResponseMapper.toDTOList(surveysPage.getContent());
+            Page<PhanHoiKhaoSat> surveysPage = khaoSatService.layKhaoSatGanDay(hours, pageable);
+            List<PhanHoiKhaoSatDTO> surveyDTOs = phanHoiKhaoSatMapper.toDTOList(surveysPage.getContent());
 
-            PagedResponse<SurveyResponseDTO> pagedResponse = PagedResponse.of(
+            PagedResponse<PhanHoiKhaoSatDTO> pagedResponse = PagedResponse.of(
                     surveyDTOs, page, size, surveysPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
@@ -158,20 +194,29 @@ public class DoctorController {
     }
 
     @GetMapping("/surveys/all")
-    public ResponseEntity<ApiResponse<PagedResponse<SurveyResponseDTO>>> getAllSurveys(
+    public ResponseEntity<ApiResponse<PagedResponse<PhanHoiKhaoSatDTO>>> getAllSurveys(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
+            // Map English field names to Vietnamese entity attributes
+            String mappedSortBy = switch (sortBy) {
+                case "createdAt" -> "ngayTao";
+                case "updatedAt" -> "ngayCapNhat";
+                case "totalScore" -> "tongDiem";
+                case "surveyType" -> "loaiKhaoSat";
+                default -> sortBy;
+            };
+
             Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
                     Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, mappedSortBy));
 
-            Page<SurveyResponse> surveysPage = surveyService.getAllSurveyResponses(pageable);
-            List<SurveyResponseDTO> surveyDTOs = surveyResponseMapper.toDTOList(surveysPage.getContent());
+            Page<PhanHoiKhaoSat> surveysPage = khaoSatService.layTatCaPhanHoiKhaoSat(pageable);
+            List<PhanHoiKhaoSatDTO> surveyDTOs = phanHoiKhaoSatMapper.toDTOList(surveysPage.getContent());
 
-            PagedResponse<SurveyResponseDTO> pagedResponse = PagedResponse.of(
+            PagedResponse<PhanHoiKhaoSatDTO> pagedResponse = PagedResponse.of(
                     surveyDTOs, page, size, surveysPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
@@ -183,21 +228,30 @@ public class DoctorController {
     }
 
     @GetMapping("/surveys/type/{surveyType}")
-    public ResponseEntity<ApiResponse<PagedResponse<SurveyResponseDTO>>> getSurveysByType(
-            @PathVariable SurveyType surveyType,
+    public ResponseEntity<ApiResponse<PagedResponse<PhanHoiKhaoSatDTO>>> getSurveysByType(
+            @PathVariable LoaiKhaoSat surveyType,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdAt") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
+            // Map English field names to Vietnamese entity attributes
+            String mappedSortBy = switch (sortBy) {
+                case "createdAt" -> "ngayTao";
+                case "updatedAt" -> "ngayCapNhat";
+                case "totalScore" -> "tongDiem";
+                case "surveyType" -> "loaiKhaoSat";
+                default -> sortBy;
+            };
+
             Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
                     Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, mappedSortBy));
 
-            Page<SurveyResponse> surveysPage = surveyService.getSurveyResponsesBySurveyType(surveyType, pageable);
-            List<SurveyResponseDTO> surveyDTOs = surveyResponseMapper.toDTOList(surveysPage.getContent());
+            Page<PhanHoiKhaoSat> surveysPage = khaoSatService.layPhanHoiTheoLoaiKhaoSat(surveyType, pageable);
+            List<PhanHoiKhaoSatDTO> surveyDTOs = phanHoiKhaoSatMapper.toDTOList(surveysPage.getContent());
 
-            PagedResponse<SurveyResponseDTO> pagedResponse = PagedResponse.of(
+            PagedResponse<PhanHoiKhaoSatDTO> pagedResponse = PagedResponse.of(
                     surveyDTOs, page, size, surveysPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
@@ -209,21 +263,30 @@ public class DoctorController {
     }
 
     @GetMapping("/patients/search")
-    public ResponseEntity<ApiResponse<PagedResponse<PatientDTO>>> searchPatients(
+    public ResponseEntity<ApiResponse<PagedResponse<benhNhanDTO>>> searchPatients(
             @RequestParam String name,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "fullName") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDirection) {
         try {
+            // Map English field names to Vietnamese entity attributes
+            String mappedSortBy = switch (sortBy) {
+                case "updatedAt" -> "ngayCapNhat";
+                case "createdAt" -> "ngayTao";
+                case "fullName" -> "hoTen";
+                case "patientCode" -> "maBenhNhan";
+                default -> sortBy;
+            };
+
             Sort.Direction direction = sortDirection.equalsIgnoreCase("desc") ?
                     Sort.Direction.DESC : Sort.Direction.ASC;
-            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+            Pageable pageable = PageRequest.of(page, size, Sort.by(direction, mappedSortBy));
 
-            Page<Patient> patientsPage = patientService.searchPatientsByName(name, pageable);
-            List<PatientDTO> patientDTOs = patientMapper.toDTOList(patientsPage.getContent());
+            Page<BenhNhan> patientsPage = benhNhanService.timKiemBenhNhanTheoTen(name, pageable);
+            List<benhNhanDTO> patientDTOs = benhNhanMapper.toDTOList(patientsPage.getContent());
 
-            PagedResponse<PatientDTO> pagedResponse = PagedResponse.of(
+            PagedResponse<benhNhanDTO> pagedResponse = PagedResponse.of(
                     patientDTOs, page, size, patientsPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
@@ -235,22 +298,22 @@ public class DoctorController {
     }
 
     // Giữ lại API không phân trang cho dashboard/stats
-    @PostMapping("/patients/{patientCode}/validate")
-    public ResponseEntity<ApiResponse<Boolean>> validatePatientCode(@PathVariable String patientCode) {
-        try {
-            boolean isValid = patientService.validatePatientCode(patientCode);
-            return ResponseEntity.ok(ApiResponse.success(
-                    isValid ? "Mã bệnh nhân hợp lệ" : "Mã bệnh nhân không hợp lệ", isValid));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Lỗi khi xác thực mã bệnh nhân: " + e.getMessage()));
-        }
-    }
+//    @PostMapping("/patients/{patientCode}/validate")
+//    public ResponseEntity<ApiResponse<Boolean>> validatePatientCode(@PathVariable String patientCode) {
+//        try {
+//            boolean isValid = benhNhanService.validatePatientCode(patientCode);
+//            return ResponseEntity.ok(ApiResponse.success(
+//                    isValid ? "Mã bệnh nhân hợp lệ" : "Mã bệnh nhân không hợp lệ", isValid));
+//        } catch (Exception e) {
+//            return ResponseEntity.badRequest().body(
+//                    ApiResponse.error("Lỗi khi xác thực mã bệnh nhân: " + e.getMessage()));
+//        }
+//    }
 
     @PostMapping("/patients/{patientCode}/deactivate")
     public ResponseEntity<ApiResponse<String>> deactivatePatient(@PathVariable String patientCode) {
         try {
-            patientService.deactivatePatient(patientCode);
+            benhNhanService.voHieuHoaBenhNhan(patientCode);
             return ResponseEntity.ok(ApiResponse.success(
                     "Đã vô hiệu hóa bệnh nhân thành công", "Deactivated"));
         } catch (Exception e) {
@@ -262,7 +325,7 @@ public class DoctorController {
     @PostMapping("/patients/{patientCode}/activate")
     public ResponseEntity<ApiResponse<String>> activatePatient(@PathVariable String patientCode) {
         try {
-            patientService.activatePatient(patientCode);
+            benhNhanService.kichHoatBenhNhan(patientCode);
             return ResponseEntity.ok(ApiResponse.success(
                     "Đã kích hoạt bệnh nhân thành công", "Activated"));
         } catch (Exception e) {
@@ -272,9 +335,9 @@ public class DoctorController {
     }
 
     @GetMapping("/dashboard/stats")
-    public ResponseEntity<ApiResponse<DashboardStatsDTO>> getDashboardStats() {
+    public ResponseEntity<ApiResponse<ThongKeDashboardDTO>> getDashboardStats() {
         try {
-            DashboardStatsDTO stats = dashboardService.getDashboardStats();
+            ThongKeDashboardDTO stats = bangDieuKhienService.getDashboardStats();
             return ResponseEntity.ok(ApiResponse.success(
                     "Lấy thống kê dashboard thành công", stats));
         } catch (Exception e) {
@@ -284,7 +347,7 @@ public class DoctorController {
     }
 
     @GetMapping("/patients/summary")
-    public ResponseEntity<ApiResponse<PagedResponse<PatientSurveySummaryDTO>>> getPatientSurveySummaries(
+    public ResponseEntity<ApiResponse<PagedResponse<TongHopKhaoSatBenhNhanDTO>>> getPatientSurveySummaries(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "lastSurveyDate") String sortBy,
@@ -294,9 +357,9 @@ public class DoctorController {
                     Sort.Direction.DESC : Sort.Direction.ASC;
             Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
 
-            Page<PatientSurveySummaryDTO> summariesPage = patientService.getPatientSurveySummaries(pageable);
+            Page<TongHopKhaoSatBenhNhanDTO> summariesPage = benhNhanService.layTongHopKhaoSatBenhNhan(pageable);
 
-            PagedResponse<PatientSurveySummaryDTO> pagedResponse = PagedResponse.of(
+            PagedResponse<TongHopKhaoSatBenhNhanDTO> pagedResponse = PagedResponse.of(
                     summariesPage.getContent(), page, size, summariesPage.getTotalElements());
 
             return ResponseEntity.ok(ApiResponse.success(
@@ -309,9 +372,9 @@ public class DoctorController {
 
     // Export all summaries (for Excel/CSV export)
     @GetMapping("/patients/summary/export")
-    public ResponseEntity<ApiResponse<List<PatientSurveySummaryDTO>>> exportPatientSurveySummaries() {
+    public ResponseEntity<ApiResponse<List<TongHopKhaoSatBenhNhanDTO>>> exportPatientSurveySummaries() {
         try {
-            List<PatientSurveySummaryDTO> summaries = patientService.getAllPatientSurveySummaries();
+            List<TongHopKhaoSatBenhNhanDTO> summaries = benhNhanService.layTatCaTongHopKhaoSatBenhNhan();
 
             return ResponseEntity.ok(ApiResponse.success(
                     "Xuất dữ liệu tổng quan bệnh nhân thành công", summaries));

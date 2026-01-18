@@ -1,12 +1,12 @@
 package com.example.medical.controller;
 
-import com.example.medical.dto.request.SurveySubmissionRequest;
+import com.example.medical.dto.request.GuiKhaoSatRequest;
 import com.example.medical.dto.response.ApiResponse;
-import com.example.medical.dto.response.SurveySubmissionResponse;
-import com.example.medical.entity.SurveyResponse;
-import com.example.medical.entity.enu.SurveyType;
-import com.example.medical.service.PatientService;
-import com.example.medical.service.SurveyService;
+import com.example.medical.dto.response.GuiKhaoSatResponse;
+import com.example.medical.entity.PhanHoiKhaoSat;
+import com.example.medical.entity.enu.LoaiKhaoSat;
+import com.example.medical.service.BenhNhanService;
+import com.example.medical.service.KhaoSatService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -17,31 +17,31 @@ import org.springframework.web.bind.annotation.*;
 public class SurveyController {
 
     @Autowired
-    private SurveyService surveyService;
+    private KhaoSatService khaoSatService;
 
     @Autowired
-    private PatientService patientService;
+    private BenhNhanService benhNhanService;
 
     @PostMapping("/submit")
-    public ResponseEntity<ApiResponse<SurveySubmissionResponse>> submitSurvey(
-            @Valid @RequestBody SurveySubmissionRequest request) {
+    public ResponseEntity<ApiResponse<GuiKhaoSatResponse>> submitSurvey(
+            @Valid @RequestBody GuiKhaoSatRequest request) {
         try {
             // Validate patient code first
-            if (!patientService.validatePatientCode(request.getPatientCode())) {
+            if (!benhNhanService.kiemTraMaBenhNhan(request.getMaBenhNhan())) {
                 return ResponseEntity.badRequest()
                         .body(ApiResponse.error("Mã bệnh nhân không đúng định dạng. Mã phải có dạng BN + 6 chữ số (ví dụ: BN123456)"));
             }
 
-            SurveyResponse response = surveyService.submitSurvey(request);
+            PhanHoiKhaoSat response = khaoSatService.guiKhaoSat(request);
 
-            SurveySubmissionResponse responseDto = new SurveySubmissionResponse(
+            GuiKhaoSatResponse responseDto = new GuiKhaoSatResponse(
                     response.getId(),
-                    response.getPatient().getId(),
-                    response.getPatient().getFullName(),
-                    response.getSurveyType(),
-                    response.getTotalScore(),
-                    response.getInterpretation(),
-                    response.getCreatedAt()
+                    response.getBenhNhan().getId(),
+                    response.getBenhNhan().getHoTen(),
+                    response.getLoaiKhaoSat(),
+                    response.getTongDiem(),
+                    response.getCauTraLoi(),
+                    response.getNgayTao()
             );
 
             return ResponseEntity.ok(ApiResponse.success("Gửi khảo sát thành công", responseDto));
@@ -53,16 +53,16 @@ public class SurveyController {
 
     @PostMapping("/validate-patient")
     public ResponseEntity<ApiResponse<String>> validatePatient(
-            @RequestParam String patientCode) {
+            @RequestParam String maBenhNhan) {
         try {
-            if (!patientService.validatePatientCode(patientCode)) {
+            if (!benhNhanService.kiemTraMaBenhNhan(maBenhNhan)) {
                 return ResponseEntity.badRequest()
                         .body(ApiResponse.error("Mã bệnh nhân không đúng định dạng"));
             }
 
             // Check if patient exists
             try {
-                patientService.getPatientByCode(patientCode);
+                benhNhanService.layBenhNhanTheoMa(maBenhNhan);
                 return ResponseEntity.ok(ApiResponse.success("Mã bệnh nhân hợp lệ", "existing"));
             } catch (RuntimeException e) {
                 return ResponseEntity.ok(ApiResponse.success("Mã bệnh nhân hợp lệ (mới)", "new"));
@@ -74,8 +74,8 @@ public class SurveyController {
     }
 
     @GetMapping("/types")
-    public ResponseEntity<ApiResponse<SurveyType[]>> getSurveyTypes() {
-        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách loại khảo sát thành công", SurveyType.values()));
+    public ResponseEntity<ApiResponse<LoaiKhaoSat[]>> getSurveyTypes() {
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách loại khảo sát thành công", LoaiKhaoSat.values()));
     }
 
     // Doctor endpoints moved to DoctorController for better security
